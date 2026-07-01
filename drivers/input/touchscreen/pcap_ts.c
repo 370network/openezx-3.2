@@ -40,6 +40,11 @@ struct pcap_ts {
 #define PRESSURE_MAX	X_AXIS_MAX
 #define PRESSURE_MIN	X_AXIS_MIN
 
+#define X_CALIB_MIN	80
+#define X_CALIB_MAX	930
+#define Y_CALIB_MIN	110
+#define Y_CALIB_MAX	930
+
 static void pcap_ts_read_xy(void *data, u16 res[2])
 {
 	struct pcap_ts *pcap_ts = data;
@@ -65,8 +70,10 @@ static void pcap_ts_read_xy(void *data, u16 res[2])
 			schedule_delayed_work(&pcap_ts->work, 0);
 		} else {
 			/* pen is touching the screen */
-			input_report_abs(pcap_ts->input, ABS_X, pcap_ts->x);
-			input_report_abs(pcap_ts->input, ABS_Y, pcap_ts->y);
+			input_report_abs(pcap_ts->input, ABS_X,
+			1023 - ((clamp(pcap_ts->x, X_CALIB_MIN, X_CALIB_MAX) - X_CALIB_MIN) * 1023 / (X_CALIB_MAX - X_CALIB_MIN)));
+			input_report_abs(pcap_ts->input, ABS_Y,
+			1023 - ((clamp(pcap_ts->y, Y_CALIB_MIN, Y_CALIB_MAX) - Y_CALIB_MIN) * 1023 / (Y_CALIB_MAX - Y_CALIB_MIN)));
 			input_report_key(pcap_ts->input, BTN_TOUCH, 1);
 			input_report_abs(pcap_ts->input, ABS_PRESSURE,
 						pcap_ts->pressure);
