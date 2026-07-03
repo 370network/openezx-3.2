@@ -32,6 +32,7 @@
  *   All Rights Reserved
  */
 
+//#define DEBUG
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
@@ -325,6 +326,8 @@ static void pxafb_set_pixfmt(struct fb_var_screeninfo *var, int depth)
 		var->blue.offset   = 0; var->blue.length   = 8;
 		var->transp.offset = 0; var->transp.length = 8;
 	}
+
+	//printk("SET_PIXFMT DEPTH : %d\n", depth);
 
 	switch (depth) {
 	case 16: var->transp.length ?
@@ -1371,11 +1374,13 @@ static int pxafb_activate_var(struct fb_var_screeninfo *var,
 
 	setup_base_frame(fbi, var, 0);
 
-	fbi->reg_lccr0 = fbi->lccr0 |
-		(LCCR0_LDM | LCCR0_SFM | LCCR0_IUM | LCCR0_EFM |
-		 LCCR0_QDM | LCCR0_BM  | LCCR0_OUM);
+	fbi->reg_lccr0 = fbi->lccr0 | 0x063008B8;
+	//fbi->reg_lccr0 = fbi->lccr0 | 
+	//	(LCCR0_LDM | LCCR0_SFM | LCCR0_IUM | LCCR0_EFM |
+	//	 LCCR0_QDM | LCCR0_BM  | LCCR0_OUM);
 
 	fbi->reg_lccr3 |= pxafb_var_to_lccr3(var);
+	//fbi->reg_lccr3 |= 0xD430FF13;
 
 	fbi->reg_lccr4 = lcd_readl(fbi, LCCR4) & ~LCCR4_PAL_FOR_MASK;
 	fbi->reg_lccr4 |= (fbi->lccr4 & LCCR4_PAL_FOR_MASK);
@@ -1816,8 +1821,8 @@ static struct pxafb_info * __devinit pxafb_init_fbinfo(struct device *dev)
 
 	fbi->fb.var.nonstd	= 0;
 	fbi->fb.var.activate	= FB_ACTIVATE_NOW;
-	fbi->fb.var.height	= -1;
-	fbi->fb.var.width	= -1;
+	fbi->fb.var.height	= 320;
+	fbi->fb.var.width	= 240;
 	fbi->fb.var.accel_flags	= FB_ACCELF_TEXT;
 	fbi->fb.var.vmode	= FB_VMODE_NONINTERLACED;
 
