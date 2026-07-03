@@ -2179,7 +2179,7 @@ static int binder_mmap(struct file *filp, struct vm_area_struct * vma)
 	if(binder_debug_mask & BINDER_DEBUG_OPEN_CLOSE)
 		printk(KERN_INFO "binder_mmap: %d %lx-%lx (%ld K) vma %lx pagep %lx\n", proc->pid, vma->vm_start, vma->vm_end, (vma->vm_end - vma->vm_start) / SZ_1K, vma->vm_flags, vma->vm_page_prot);
 
-	if(vma->vm_flags & (VM_WRITE | VM_EXEC)) {
+	if(vma->vm_flags & VM_WRITE) {
 		ret = -EPERM;
 		failure_string = "bad vm_flags";
 		goto err_bad_arg;
