@@ -8,6 +8,10 @@ config ANDROID
 
 if ANDROID
 
+config ANDROID_OPENBINDER_IPC
+	bool "Android OpenBinder IPC Driver"
+	default n
+
 config ANDROID_BINDER_IPC
 	bool "Android Binder IPC Driver"
 	default n
