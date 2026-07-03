@@ -17,7 +17,7 @@
 
 #include <asm/uaccess.h>
 #include <asm/cacheflush.h>
-#include <linux/binder_module.h>
+#include "openbinder_module.h"
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/list.h>
@@ -29,6 +29,7 @@
 #include <linux/rbtree.h>
 #include <linux/sched.h>
 #include <linux/vmalloc.h>
+#include <linux/fdtable.h>
 
 static DEFINE_MUTEX(binder_lock);
 static HLIST_HEAD(binder_procs);
@@ -60,9 +61,9 @@ enum {
 	BINDER_DEBUG_BUFFER_ALLOC           = 1U << 13,
 };
 static uint32_t binder_debug_mask = BINDER_DEBUG_USER_ERROR | BINDER_DEBUG_FAILED_TRANSACTION | BINDER_DEBUG_DEAD_TRANSACTION | BINDER_DEBUG_OPEN_CLOSE;
-module_param_named(debug_mask, binder_debug_mask, uint, S_IWUSR | S_IRUGO)
+module_param_named(debug_mask, binder_debug_mask, uint, S_IWUSR | S_IRUGO);
 static int binder_debug_no_lock = 0;
-module_param_named(proc_no_lock, binder_debug_no_lock, bool, S_IWUSR | S_IRUGO)
+module_param_named(proc_no_lock, binder_debug_no_lock, bool, S_IWUSR | S_IRUGO);
 
 enum {
 	BINDER_STAT_PROC,

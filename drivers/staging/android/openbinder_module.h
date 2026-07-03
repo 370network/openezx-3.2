@@ -13,7 +13,7 @@
 #ifndef _BINDER_MODULE_H_
 #define _BINDER_MODULE_H_
 
-#include <linux/binder_type_constants.h>
+#include "openbinder_type_constants.h"
 
 #ifdef __cplusplus
 #if _SUPPORTS_NAMESPACE
