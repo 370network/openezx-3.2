@@ -414,8 +414,9 @@ power_attr(pm_trace_dev_match);
 #endif /* CONFIG_PM_TRACE */
 
 #ifdef CONFIG_USER_WAKELOCK
-power_attr(wake_lock);
-power_attr(wake_unlock);
+power_attr(acquire_full_wake_lock);
+power_attr(acquire_partial_wake_lock);
+power_attr(release_wake_lock);
 #endif
 
 static struct attribute * g[] = {
@@ -431,8 +432,9 @@ static struct attribute * g[] = {
 	&pm_test_attr.attr,
 #endif
 #ifdef CONFIG_USER_WAKELOCK
-	&wake_lock_attr.attr,
-	&wake_unlock_attr.attr,
+	&acquire_full_wake_lock_attr.attr,
+	&acquire_partial_wake_lock_attr.attr,
+	&release_wake_lock_attr.attr,
 #endif
 #endif
 	NULL,
