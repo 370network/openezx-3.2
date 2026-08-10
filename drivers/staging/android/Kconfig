@@ -8,6 +8,10 @@ config ANDROID
 
 if ANDROID
 
+config ANDROID_VIBRATOR_COMPAT
+	bool "android-vibrator Compatibility Shim"
+	default n
+
 config ANDROID_OPENBINDER_IPC
 	bool "Android OpenBinder IPC Driver"
 	default n
