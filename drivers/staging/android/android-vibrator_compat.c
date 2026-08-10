@@ -244,17 +244,14 @@ static int vibrator_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, vibrator);
 
-	ret = device_create_file(&pdev->dev,
-				 &dev_attr_enable);
+	ret = device_create_file(&pdev->dev, &dev_attr_enable);
 
 	if (ret) {
 		platform_set_drvdata(pdev, NULL);
 		return ret;
 	}
 
-	printk(KERN_INFO
-	       "%s: registered\n",
-	       dev_name(&pdev->dev));
+	printk(KERN_INFO "android-vibrator_compat: %s registered\n", dev_name(&pdev->dev));
 
 	return 0;
 }
@@ -373,4 +370,5 @@ module_init(vibrator_init);
 module_exit(vibrator_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Android vibrator compat shim");
+MODULE_AUTHOR("Richard Gracik - Morc | 370network");
+MODULE_DESCRIPTION("Legacy Android vibrator compat shim");
