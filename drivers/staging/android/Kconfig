@@ -8,6 +8,10 @@ config ANDROID
 
 if ANDROID
 
+config ANDROID_POWER_COMPAT
+	bool "android_power Battery Compatibility Shim"
+	default n
+
 config ANDROID_VIBRATOR_COMPAT
 	bool "android-vibrator Compatibility Shim"
 	default n
