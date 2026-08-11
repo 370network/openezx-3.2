@@ -315,8 +315,8 @@ static struct pcap_bat_struct pcap_bat = {
 		.external_power_changed = pcap_bat_external_power_changed,
 		.use_for_apm	= 1,
 	},
-	.max = 4200,
-	.min = 2000,
+	.max = 4100,
+	.min = 3300,
 };
 
 static int __devinit pcap_bat_probe(struct platform_device *pdev)
