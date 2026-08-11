@@ -1,9 +1,11 @@
 /*
  *  Input driver for PCAP events:
- *   * Power key
+ *   * Call Decline key (<2s)
+ *   * Power key (=>2s)
  *   * Headphone button
  *
  *  Copyright (c) 2008,2009 Ilya Petrov <ilya.muromec@gmail.com>
+ *  Copyright (c) 2026 Richard Gráčik - Morc <morc@370.network>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2 as
@@ -18,10 +20,13 @@
 #include <linux/input.h>
 #include <linux/mfd/ezx-pcap.h>
 #include <linux/slab.h>
+#include <linux/jiffies.h>
 
 struct pcap_keys {
 	struct pcap_chip *pcap;
 	struct input_dev *input;
+	unsigned long press_time;
+	bool pressed;
 };
 
 /* PCAP2 interrupts us on keypress */
@@ -36,7 +41,19 @@ static irqreturn_t pcap_keys_handler(int irq, void *_pcap_keys)
 
 	switch (pirq) {
 	case PCAP_IRQ_ONOFF:
-		input_report_key(pcap_keys->input, KEY_POWER, !pstat);
+		//crude decline/power button handler
+		if (!pstat) {
+			pcap_keys->press_time = jiffies;
+			pcap_keys->pressed = true;
+		} else {
+			if(pcap_keys->pressed) {
+				int key = time_after(jiffies, pcap_keys->press_time + (2 * HZ)) ? KEY_POWER : KEY_END;
+				input_report_key(pcap_keys->input, key, 1);
+				input_sync(pcap_keys->input);
+				input_report_key(pcap_keys->input, key, 0);
+				pcap_keys->pressed = false;
+			}
+		}
 		break;
 	case PCAP_IRQ_MIC:
 		input_report_key(pcap_keys->input, KEY_HP, !pstat);
@@ -74,6 +91,7 @@ static int __devinit pcap_keys_probe(struct platform_device *pdev)
 
 	__set_bit(EV_KEY, input_dev->evbit);
 	__set_bit(KEY_POWER, input_dev->keybit);
+	__set_bit(KEY_END, input_dev->keybit); //decline call for Android
 	__set_bit(SW_HEADPHONE_INSERT, input_dev->swbit);
 	__set_bit(KEY_HP, input_dev->keybit);
 
