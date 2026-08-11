@@ -21,6 +21,8 @@
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
 
+// using 100 scale since it makes the most sense
+// M1-M5 has them visually in steps of 10
 #define ANDROID_BATTERY_SCALE          100
 #define ANDROID_BATTERY_LOW_LEVEL      10
 #define ANDROID_BATTERY_SHUTDOWN_LEVEL  5
@@ -92,7 +94,7 @@ static int android_power_get_level(void)
 	level = (voltage_now.intval - voltage_min.intval) * 100;
 	level /= voltage_max.intval - voltage_min.intval;
 
-	//clamping
+	// clamping
 	if (level < 0) level = 0;
 	if (level > 100) level = 100;
 
@@ -172,6 +174,18 @@ static ssize_t charging_state_show(struct kobject *kobj, struct kobj_attribute *
 
 	ret = battery->get_property(battery, POWER_SUPPLY_PROP_STATUS, &status);
 	if (ret) return ret;
+
+	/* original android_power driver states
+	const char *state_str[] = {
+		[ANDROID_CHARGING_STATE_UNKNOWN] = "Unknown",
+		[ANDROID_CHARGING_STATE_DISCHARGE] = "Discharging",
+		[ANDROID_CHARGING_STATE_MAINTAIN] = "Maintaining",
+		[ANDROID_CHARGING_STATE_SLOW] = "Slow",
+		[ANDROID_CHARGING_STATE_NORMAL] = "Normal",
+		[ANDROID_CHARGING_STATE_FAST] = "Fast",
+		[ANDROID_CHARGING_STATE_OVERHEAT] = "Overheat"
+	};*/
+
 
 	switch (status.intval) {
 		case POWER_SUPPLY_STATUS_DISCHARGING:
