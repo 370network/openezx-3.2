@@ -327,8 +327,6 @@ static void pxafb_set_pixfmt(struct fb_var_screeninfo *var, int depth)
 		var->transp.offset = 0; var->transp.length = 8;
 	}
 
-	//printk("SET_PIXFMT DEPTH : %d\n", depth);
-
 	switch (depth) {
 	case 16: var->transp.length ?
 		 SET_PIXFMT(var, 5, 5, 5, 1) :		/* RGBT555 */
@@ -1100,26 +1098,61 @@ static int setup_frame_dma(struct pxafb_info *fbi, int dma, int pal,
 	return 0;
 }
 
+// 565 > 666 recalc function using bitshifts
+static void pxafb_565_666(const uint16_t *src, uint32_t *dst, size_t npixels)
+{
+	size_t i;
+
+	for (i = 0; i < npixels; i++) {
+		uint16_t px = src[i];
+		uint32_t r = (px >> 11) & 0x1f;
+		uint32_t b = px & 0x1f;
+
+		dst[i] = (r << 13) |
+         		((px & 0x07e0) << 1) |
+         		(b << 1);
+	}
+}
+
 static void setup_base_frame(struct pxafb_info *fbi,
                              struct fb_var_screeninfo *var,
                              int branch)
 {
-	struct fb_fix_screeninfo *fix = &fbi->fb.fix;
 	int nbytes, dma, pal, bpp = var->bits_per_pixel;
 	unsigned long offset;
+
+	// setup shadow fb
+	int shadow_line_length = var->xres_virtual * 4;
+	unsigned long dst_offset;
+	size_t npixels = var->xres_virtual * var->yres;
 
 	dma = DMA_BASE + (branch ? DMA_MAX : 0);
 	pal = (bpp >= 16) ? PAL_NONE : PAL_BASE + (branch ? PAL_MAX : 0);
 
-	nbytes = fix->line_length * var->yres;
-	offset = fix->line_length * var->yoffset + fbi->video_mem_phys;
+	if (bpp == 32) {
+		nbytes = fbi->fb.fix.line_length * var->yres;
+		offset = fbi->fb.fix.line_length * var->yoffset + fbi->video_mem_phys;
+	} else {
+		offset = fbi->fb.fix.line_length * var->yoffset;
+		dst_offset = shadow_line_length * var->yoffset;
+
+		pxafb_565_666((const uint16_t *)(fbi->video_mem + offset), (uint32_t *)(fbi->shadow_mem + dst_offset), npixels);
+
+		nbytes = shadow_line_length * var->yres;
+	}
 
 	if (fbi->lccr0 & LCCR0_SDS) {
 		nbytes = nbytes / 2;
-		setup_frame_dma(fbi, dma + 1, PAL_NONE, offset + nbytes, nbytes);
+		if (bpp == 32)
+			setup_frame_dma(fbi, dma + 1, PAL_NONE, offset + nbytes, nbytes);
+		else
+			setup_frame_dma(fbi, dma + 1, PAL_NONE, fbi->shadow_mem_phys + dst_offset + nbytes, nbytes);
 	}
 
-	setup_frame_dma(fbi, dma, pal, offset, nbytes);
+	if (bpp == 32)
+		setup_frame_dma(fbi, dma, pal, offset, nbytes);
+	else
+		setup_frame_dma(fbi, dma, pal, fbi->shadow_mem_phys + dst_offset, nbytes);
 }
 
 #ifdef CONFIG_FB_PXA_SMARTPANEL
@@ -1374,13 +1407,16 @@ static int pxafb_activate_var(struct fb_var_screeninfo *var,
 
 	setup_base_frame(fbi, var, 0);
 
-	fbi->reg_lccr0 = fbi->lccr0 | 0x063008B8;
-	//fbi->reg_lccr0 = fbi->lccr0 | 
-	//	(LCCR0_LDM | LCCR0_SFM | LCCR0_IUM | LCCR0_EFM |
-	//	 LCCR0_QDM | LCCR0_BM  | LCCR0_OUM);
+	fbi->reg_lccr0 = fbi->lccr0 | 
+		(LCCR0_LDM | LCCR0_SFM | LCCR0_IUM | LCCR0_EFM |
+		 LCCR0_QDM | LCCR0_BM  | LCCR0_OUM);
 
-	fbi->reg_lccr3 |= pxafb_var_to_lccr3(var);
-	//fbi->reg_lccr3 |= 0xD430FF13;
+	struct fb_var_screeninfo shadow_var;
+	memset(&shadow_var, 0, sizeof(shadow_var));
+	shadow_var.bits_per_pixel = 32;
+	pxafb_set_pixfmt(&shadow_var, 18);
+
+	fbi->reg_lccr3 |= pxafb_var_to_lccr3(&shadow_var);
 
 	fbi->reg_lccr4 = lcd_readl(fbi, LCCR4) & ~LCCR4_PAL_FOR_MASK;
 	fbi->reg_lccr4 |= (fbi->lccr4 & LCCR4_PAL_FOR_MASK);
@@ -1725,6 +1761,22 @@ static int __devinit pxafb_init_video_memory(struct pxafb_info *fbi)
 	return fbi->video_mem ? 0 : -ENOMEM;
 }
 
+//"fake" framebuffer for the 565 > 666 hack
+static int __devinit pxafb_init_shadow_memory(struct pxafb_info *fbi)
+{
+	// double the mem_size for 32bit 
+	int size = PAGE_ALIGN(fbi->video_mem_size * 2);
+
+	fbi->shadow_mem = alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
+	if (fbi->shadow_mem == NULL)
+		return -ENOMEM;
+
+	fbi->shadow_mem_phys = virt_to_phys(fbi->shadow_mem);
+	fbi->shadow_mem_size = size;
+
+	return 0;
+}
+
 static void pxafb_decode_mach_info(struct pxafb_info *fbi,
 				   struct pxafb_mach_info *inf)
 {
@@ -1821,8 +1873,8 @@ static struct pxafb_info * __devinit pxafb_init_fbinfo(struct device *dev)
 
 	fbi->fb.var.nonstd	= 0;
 	fbi->fb.var.activate	= FB_ACTIVATE_NOW;
-	fbi->fb.var.height	= 320;
-	fbi->fb.var.width	= 240;
+	fbi->fb.var.height	= -1;
+	fbi->fb.var.width	= -1;
 	fbi->fb.var.accel_flags	= FB_ACCELF_TEXT;
 	fbi->fb.var.vmode	= FB_VMODE_NONINTERLACED;
 
@@ -2177,6 +2229,13 @@ static int __devinit pxafb_probe(struct platform_device *dev)
 		dev_err(&dev->dev, "Failed to allocate video RAM: %d\n", ret);
 		ret = -ENOMEM;
 		goto failed_free_dma;
+	}
+
+	ret = pxafb_init_shadow_memory(fbi);
+	if (ret) {
+		dev_err(&dev->dev, "Failed to allocate shadow video RAM: %d\n", ret);
+		ret = -ENOMEM;
+		goto failed_free_mem;
 	}
 
 	irq = platform_get_irq(dev, 0);

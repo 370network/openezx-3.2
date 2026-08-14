@@ -167,6 +167,11 @@ struct pxafb_info {
 
 	void (*lcd_power)(int, struct fb_var_screeninfo *);
 	void (*backlight_power)(int);
+
+	// shadow framebuffer for surfaceflinger 565 > hardware 666 shenanigans
+	void __iomem		*shadow_mem;
+	unsigned long		shadow_mem_phys;
+	size_t			shadow_mem_size;
 };
 
 #define TO_INF(ptr,member) container_of(ptr,struct pxafb_info,member)
