@@ -29,7 +29,7 @@
 #include <sound/asound.h>
 #include <linux/soundcard.h>
 
-MODULE_AUTHOR("Google, Inc.");
+MODULE_AUTHOR("Google, Inc. & 370network");
 MODULE_DESCRIPTION("Android EZX Audio Driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
@@ -74,11 +74,11 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 
 	ctl_file = filp_open("/dev/controlC0", O_RDWR, 0);
 	if (!IS_ERR(ctl_file)) {
-		control(ctl_file, "Master Playback Volume", 15); //max volume 0-15
+		control(ctl_file, "Master Playback Volume", 13); //volume 0-15
 		control(ctl_file, "Output Mixer AL Switch", 1); //left headphone channel
 		control(ctl_file, "Output Mixer AR Switch", 1); //right headphone channel
 		control(ctl_file, "Output Mixer A2 Switch", 1); //loudspeaker output
-		control(ctl_file, "Downmixer", 1); //downmixing for the loudspeaker, for now
+		control(ctl_file, "Downmixer", 3); //downmixing for the loudspeaker, for now
 		filp_close(ctl_file, NULL);
 	}
 
@@ -88,9 +88,14 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 		return PTR_ERR(dsp_file);
 	}
 
-	custom_ioctl(dsp_file, SNDCTL_DSP_SETFMT, AFMT_S16_LE);
-	custom_ioctl(dsp_file, SNDCTL_DSP_CHANNELS, 2);
-	custom_ioctl(dsp_file, SNDCTL_DSP_SPEED, 44100);
+
+	int fmt = AFMT_S16_LE;
+	int chan = 2;
+	int bits = 44100;
+
+	custom_ioctl(dsp_file, SNDCTL_DSP_SETFMT, (unsigned long)&fmt);
+	custom_ioctl(dsp_file, SNDCTL_DSP_CHANNELS, (unsigned long)&chan);
+	custom_ioctl(dsp_file, SNDCTL_DSP_SPEED, (unsigned long)&bits);
 
 	file->private_data = dsp_file;
 	return 0;
