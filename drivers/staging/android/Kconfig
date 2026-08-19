@@ -8,6 +8,10 @@ config ANDROID
 
 if ANDROID
 
+config ANDROID_EZX_EAC
+	bool "Android EZX Audio Driver"
+	default n
+
 config ANDROID_POWER_COMPAT
 	bool "android_power Battery Compatibility Shim"
 	default n
