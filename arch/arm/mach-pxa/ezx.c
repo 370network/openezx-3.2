@@ -590,7 +590,7 @@ static struct pxa27x_keypad_platform_data e680_keypad_platform_data = {
 static unsigned int a1200_key_map[] = {
 	KEY(0, 0, KEY_RESERVED),
 	KEY(0, 1, KEY_RIGHT),
-	KEY(0, 2, KEY_PAGEDOWN),
+	KEY(0, 2, KEY_VOLUMEDOWN),
 	KEY(0, 3, KEY_RESERVED),
 	KEY(0, 4, KEY_RESERVED),
 	KEY(0, 5, KEY_RESERVED),
@@ -618,7 +618,7 @@ static unsigned int a1200_key_map[] = {
 
 	KEY(4, 0, KEY_RESERVED),
 	KEY(4, 1, KEY_LEFT),
-	KEY(4, 2, KEY_PAGEUP),
+	KEY(4, 2, KEY_VOLUMEUP),
 	KEY(4, 3, KEY_RESERVED),
 	KEY(4, 4, KEY_RESERVED),
 	KEY(4, 5, KEY_RESERVED),
