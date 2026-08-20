@@ -74,11 +74,14 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 
 	ctl_file = filp_open("/dev/controlC0", O_RDWR, 0);
 	if (!IS_ERR(ctl_file)) {
-		control(ctl_file, "Master Playback Volume", 13); //volume 0-15
+		control(ctl_file, "Master Playback Volume", 10); //volume 0-15 (13 distorts a lot already)
 		control(ctl_file, "Output Mixer AL Switch", 1); //left headphone channel
 		control(ctl_file, "Output Mixer AR Switch", 1); //right headphone channel
+		control(ctl_file, "Output Mixer A1 Switch", 0); //earpiece output
 		control(ctl_file, "Output Mixer A2 Switch", 1); //loudspeaker output
-		control(ctl_file, "Downmixer", 3); //downmixing for the loudspeaker, for now
+		control(ctl_file, "Downmixer", 3);	//2->1ch -6db - downmixing for the loudspeaker
+							//maybe regular 2->1ch is enough, needd more testing
+							//plus disable it for headphones, otherwise you turn mono
 		filp_close(ctl_file, NULL);
 	}
 
