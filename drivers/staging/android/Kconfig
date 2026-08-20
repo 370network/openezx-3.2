@@ -12,6 +12,10 @@ config ANDROID_EZX_EAC
 	bool "Android EZX Audio Driver"
 	default n
 
+config ANDROID_BACKLIGHT_COMPAT
+	bool "keyboard/lcd/button-backlight Compatibility Shim"
+	default n
+
 config ANDROID_POWER_COMPAT
 	bool "android_power Battery Compatibility Shim"
 	default n

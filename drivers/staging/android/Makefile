@@ -10,3 +10,5 @@ obj-$(CONFIG_ANDROID_INTF_ALARM_DEV)	+= alarm-dev.o
 obj-$(CONFIG_ANDROID_VIBRATOR_COMPAT)	+= android-vibrator_compat.o
 obj-$(CONFIG_ANDROID_POWER_COMPAT)	+= android_power_compat.o
 obj-$(CONFIG_ANDROID_EZX_EAC)	+= ezx_eac.o
+obj-$(CONFIG_ANDROID_BACKLIGHT_COMPAT)	+= backlight_compat.o
+
