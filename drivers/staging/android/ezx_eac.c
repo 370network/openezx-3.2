@@ -80,6 +80,8 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 {
 	struct eac_audio_files *files;
 
+	printk("eac_audio attempt to open /dev/eac\n");
+
 	files = kzalloc(sizeof(*files), GFP_KERNEL);
 	if (!files)
 		return -ENOMEM;
@@ -99,18 +101,17 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 
 	files->dsp_file = filp_open("/dev/dsp", O_WRONLY, 0);
 	if (IS_ERR(files->dsp_file)) {
-		pr_err("eac_audio failed opening /dev/dsp\n");
-		return PTR_ERR(files->dsp_file);
+		pr_warn("eac_audio failed opening /dev/dsp, we are possibly already opened by AudioFlinger\n");
+		files->dsp_file = NULL;
+	} else {
+		int fmt = AFMT_S16_LE;
+		int chan = 2;
+		int bits = 44100;
+
+		custom_ioctl(files->dsp_file, SNDCTL_DSP_SETFMT, (unsigned long)&fmt);
+		custom_ioctl(files->dsp_file, SNDCTL_DSP_CHANNELS, (unsigned long)&chan);
+		custom_ioctl(files->dsp_file, SNDCTL_DSP_SPEED, (unsigned long)&bits);
 	}
-
-
-	int fmt = AFMT_S16_LE;
-	int chan = 2;
-	int bits = 44100;
-
-	custom_ioctl(files->dsp_file, SNDCTL_DSP_SETFMT, (unsigned long)&fmt);
-	custom_ioctl(files->dsp_file, SNDCTL_DSP_CHANNELS, (unsigned long)&chan);
-	custom_ioctl(files->dsp_file, SNDCTL_DSP_SPEED, (unsigned long)&bits);
 
 	file->private_data = files;
 	return 0;
@@ -139,6 +140,12 @@ static int eac_audio_release(struct inode *inode, struct file *file)
 	if (files->dsp_file)
 		filp_close(files->dsp_file, NULL);
 
+	if (files->ctl_file)
+		filp_close(files->ctl_file, NULL);
+
+	kfree(files);
+	file->private_data = NULL;
+
 	return 0;
 }
 
@@ -154,14 +161,32 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	}
 
 	switch (cmd) {
-		case IOCTL_BT_SCO_AUDIO_PATH_CONTROL: //AudioHardwareHTC::enableBluetooth
-		case 307: //AudioHardwareHTC::setVoiceValue
-		case 315: //AudioHardwareHTC::open
+		case 303: //(libhardware) android::AudioDriver::setVolume
+		case 304: //(libhardware) android::AudioDriver::getVolume - specific stream type
+		case 305: //(libhardware) android::AudioDriver::setStreamType
+		case 307: //(libaudioflinger) AudioHardwareHTC::setVoiceValue &
+			//(libhardware) android::AudioDriver::setVolume - master (?)
+		case 308: //(libhardware) android::AudioDriver::getVolume - master (?)
+		case 309: //(libhardware) android::AudioDriver::muteMicrophone
+		case 310: //(libhardware) android::AudioDriver::isMicrophoneMuted
+		case 312: //(libhardware) android::AudioDriver::isSpeakerphoneOn - get state
+		case 313: //(libhardware) android::AudioDriver::stayAwake
+		case 317: //(libhardware) android::AudioDriver::setSampleRate
+			printk("eac_audio stub cmd %d value %d\n", cmd, value);
+			break;
+
+		case IOCTL_BT_SCO_AUDIO_PATH_CONTROL:	//300 | (libaudioflinger) AudioHardwareHTC::enableBluetooth &
+							//(libhardware) android::AudioDriver::bluetooth &
+							//libhardware) android::AudioDriver::speakerphone - disable BT
+		case 315: //(libaudioflinger) AudioHardwareHTC::open
 			return -1;
-		case IOCTL_SET_SPEAKERPHONE: //AudioHardwareHTC::enableSpeaker
+
+		case IOCTL_SET_SPEAKERPHONE:	//311 | (libaudioflinger) AudioHardwareHTC::enableSpeaker &
+						//(libhardware) android::AudioDriver::speakerphone
 			printk("eac_audio set speakerphone %d\n", value);
 			control(files->ctl_file, "Output Mixer A1 Switch", !value); //earpiece output
 			control(files->ctl_file, "Output Mixer A2 Switch", value); //loudspeaker output
+			break;
 		default:
 			return 0;
 	}
