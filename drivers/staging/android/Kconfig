@@ -12,6 +12,10 @@ config ANDROID_EZX_EAC
 	bool "Android EZX Audio Driver"
 	default n
 
+config ANDROID_EVENT0_COMPAT
+	bool "Android M1/M2/M3/M4 event0 Compatibility Shim"
+	default n
+
 config ANDROID_BACKLIGHT_COMPAT
 	bool "keyboard/lcd/button-backlight Compatibility Shim"
 	default n
