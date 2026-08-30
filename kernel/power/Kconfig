@@ -21,6 +21,9 @@ config SUSPEND_FREEZER
 config HAS_WAKELOCK
 	bool
 
+config HAS_EARLYSUSPEND
+	bool
+
 config WAKELOCK
 	bool "Wake lock"
 	depends on PM && RTC_CLASS

@@ -126,7 +126,7 @@ bad_arg:
 	return ERR_PTR(-EINVAL);
 }
 
-ssize_t acquire_full_wake_lock_show(
+ssize_t wake_lock_show(
 	struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	char *s = buf;
@@ -147,54 +147,7 @@ ssize_t acquire_full_wake_lock_show(
 	return (s - buf);
 }
 
-ssize_t acquire_full_wake_lock_store(
-	struct kobject *kobj, struct kobj_attribute *attr,
-	const char *buf, size_t n)
-{
-	long timeout;
-	struct user_wake_lock *l;
-
-	mutex_lock(&tree_lock);
-	l = lookup_wake_lock_name(buf, 1, &timeout);
-	if (IS_ERR(l)) {
-		n = PTR_ERR(l);
-		goto bad_name;
-	}
-
-	if (debug_mask & DEBUG_ACCESS)
-		pr_info("wake_lock_store: %s, timeout %ld\n", l->name, timeout);
-
-	if (timeout)
-		wake_lock_timeout(&l->wake_lock, timeout);
-	else
-		wake_lock(&l->wake_lock);
-bad_name:
-	mutex_unlock(&tree_lock);
-	return n;
-}
-
-ssize_t acquire_partial_wake_lock_show(
-	struct kobject *kobj, struct kobj_attribute *attr, char *buf)
-{
-	char *s = buf;
-	char *end = buf + PAGE_SIZE;
-	struct rb_node *n;
-	struct user_wake_lock *l;
-
-	mutex_lock(&tree_lock);
-
-	for (n = rb_first(&user_wake_locks); n != NULL; n = rb_next(n)) {
-		l = rb_entry(n, struct user_wake_lock, node);
-		if (wake_lock_active(&l->wake_lock))
-			s += scnprintf(s, end - s, "%s ", l->name);
-	}
-	s += scnprintf(s, end - s, "\n");
-
-	mutex_unlock(&tree_lock);
-	return (s - buf);
-}
-
-ssize_t acquire_partial_wake_lock_store(
+ssize_t wake_lock_store(
 	struct kobject *kobj, struct kobj_attribute *attr,
 	const char *buf, size_t n)
 {
@@ -221,7 +174,7 @@ bad_name:
 }
 
 
-ssize_t release_wake_lock_show(
+ssize_t wake_unlock_show(
 	struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	char *s = buf;
@@ -242,7 +195,7 @@ ssize_t release_wake_lock_show(
 	return (s - buf);
 }
 
-ssize_t release_wake_lock_store(
+ssize_t wake_unlock_store(
 	struct kobject *kobj, struct kobj_attribute *attr,
 	const char *buf, size_t n)
 {
@@ -263,4 +216,3 @@ not_found:
 	mutex_unlock(&tree_lock);
 	return n;
 }
-

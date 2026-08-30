@@ -20,13 +20,15 @@
 #include <linux/version.h>
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
 
 // using 100 scale since it makes the most sense
 // M1-M5 has them visually in steps of 10
 #define ANDROID_BATTERY_SCALE          100
 #define ANDROID_BATTERY_LOW_LEVEL      10
 #define ANDROID_BATTERY_SHUTDOWN_LEVEL  5
-#define POLL_INTERVAL_MS               2500
+#define POLL_INTERVAL_MS               5000
 
 static struct power_supply *battery;
 static struct kobject *android_power_kobj;
@@ -35,6 +37,7 @@ extern struct kobject *power_kobj;
 static int last_battery_level = -1;
 static int last_charging_status = -1;
 static struct delayed_work power_poll_work;
+static char last_requested_state[32] = "370network\n";
 
 static void android_power_notify_file(const char *filename)
 {
@@ -202,6 +205,71 @@ static ssize_t charging_state_show(struct kobject *kobj, struct kobj_attribute *
 }
 static struct kobj_attribute charging_state_attr = __ATTR(charging_state, 0444, charging_state_show, NULL);
 
+
+static void mirror_sys(const char *path, const char *buf, size_t count)
+{
+	struct file *filp;
+	loff_t pos = 0;
+
+	filp = filp_open(path, O_WRONLY, 0);
+	if (IS_ERR(filp))
+		return;
+
+	mm_segment_t old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	vfs_write(filp, (char __user *)buf, count, &pos);
+	set_fs(old_fs);
+
+	filp_close(filp, NULL);
+}
+
+static ssize_t acquire_partial_wake_lock_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
+	return sprintf(buf, "\n");
+}
+static ssize_t acquire_partial_wake_lock_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {
+	printk("partial screen wakelock attempt: %s\n", buf);
+	//mirror_sys("/sys/power/wake_lock", buf, count);
+	return count;
+}
+static struct kobj_attribute acquire_partial_wake_lock_attr = __ATTR(acquire_partial_wake_lock, 0666, acquire_partial_wake_lock_show, acquire_partial_wake_lock_store);
+
+static ssize_t acquire_full_wake_lock_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
+	return sprintf(buf, "\n");
+}
+static ssize_t acquire_full_wake_lock_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {
+	printk("full wakelock attempt: %s\n", buf);
+	mirror_sys("/sys/power/wake_lock", buf, count);
+	return count;
+}
+static struct kobj_attribute acquire_full_wake_lock_attr = __ATTR(acquire_full_wake_lock, 0666, acquire_full_wake_lock_show, acquire_full_wake_lock_store);
+
+static ssize_t release_wake_lock_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
+	return sprintf(buf, "\n");
+}
+static ssize_t release_wake_lock_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {
+	printk("release wakelock attempt: %s\n", buf);
+	mirror_sys("/sys/power/wake_unlock", buf, count);
+	return count;
+}
+static struct kobj_attribute release_wake_lock_attr = __ATTR(release_wake_lock, 0666, release_wake_lock_show, release_wake_lock_store);
+
+static ssize_t request_state_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) {
+	return sprintf(buf, "%s", last_requested_state);
+}
+static ssize_t request_state_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count) {
+	snprintf(last_requested_state, sizeof(last_requested_state), "%s", buf);
+	printk("attempted to request_state: %s\n", buf);
+
+	if (strstr(buf, "standby")) {
+//		mirror_sys("/sys/power/state", "standby\n", 8);
+	} else if (strstr(buf, "wake")) {
+//		mirror_sys("/sys/power/state", "wake\n", 4);
+	}
+
+	return count;
+}
+static struct kobj_attribute request_state_attr = __ATTR(request_state, 0666, request_state_show, request_state_store);
+
 static struct attribute *android_power_attrs[] = {
 	&battery_level_attr.attr,
 	&battery_level_low_attr.attr,
@@ -209,6 +277,10 @@ static struct attribute *android_power_attrs[] = {
 	&battery_level_scale_attr.attr,
 	&battery_shutdown_level_attr.attr,
 	&charging_state_attr.attr,
+	&acquire_partial_wake_lock_attr.attr,
+	&acquire_full_wake_lock_attr.attr,
+	&release_wake_lock_attr.attr,
+	&request_state_attr.attr,
 	NULL,
 };
 

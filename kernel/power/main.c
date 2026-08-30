@@ -18,6 +18,8 @@
 
 #include "power.h"
 
+extern void request_suspend_state(suspend_state_t state);
+
 DEFINE_MUTEX(pm_mutex);
 
 #ifdef CONFIG_PM_SLEEP
@@ -414,9 +416,8 @@ power_attr(pm_trace_dev_match);
 #endif /* CONFIG_PM_TRACE */
 
 #ifdef CONFIG_USER_WAKELOCK
-power_attr(acquire_full_wake_lock);
-power_attr(acquire_partial_wake_lock);
-power_attr(release_wake_lock);
+power_attr(wake_lock);
+power_attr(wake_unlock);
 #endif
 
 static struct attribute * g[] = {
@@ -432,9 +433,8 @@ static struct attribute * g[] = {
 	&pm_test_attr.attr,
 #endif
 #ifdef CONFIG_USER_WAKELOCK
-	&acquire_full_wake_lock_attr.attr,
-	&acquire_partial_wake_lock_attr.attr,
-	&release_wake_lock_attr.attr,
+	&wake_lock_attr.attr,
+	&wake_unlock_attr.attr,
 #endif
 #endif
 	NULL,
