@@ -36,8 +36,9 @@ CONFIG_AEABI=y
 CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
 #CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0 mem=32M@0xA0000000 mem=16M@0xAC000000 loglevel=8 ignore_loglevel debug printk.time=1 initcall_debug "
-#CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0"
-CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init rootwait dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop"
+#CONFIG_CMDLINE="root=/dev/mmcblk0p2 rootfstype=ext2 init=/init ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0"
+CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init rootwait dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop quiet loglevel=0"
+#CONFIG_CMDLINE="root=/dev/mmcblk0p2 rootfstype=ext2 init=/init rootwait ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0 dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop"
 CONFIG_KEXEC=n
 CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
@@ -188,7 +189,7 @@ CONFIG_RFKILL_REGULATOR=y
 # CONFIG_UEVENT_HELPER_PATH is not set
 CONFIG_FW_LOADER=m
 CONFIG_CONNECTOR=m
-CONFIG_MTD=y
+CONFIG_MTD=n
 CONFIG_MTD_CMDLINE_PARTS=n
 CONFIG_MTD_CHAR=y
 CONFIG_MTD_BLOCK=y
@@ -233,10 +234,10 @@ CONFIG_LEGACY_PTY_COUNT=2
 CONFIG_SERIAL_PXA=y
 CONFIG_SERIAL_PXA_CONSOLE=y
 # CONFIG_HW_RANDOM is not set
-CONFIG_MOTO_USB_IPC=y
-CONFIG_N_GSM=y
+CONFIG_MOTO_USB_IPC=n
+CONFIG_N_GSM=n
 CONFIG_MOT_FEAT_TS27010MUX=n
-CONFIG_TS0710_MUX=y
+CONFIG_TS0710_MUX=n
 CONFIG_I2C=y
 CONFIG_I2C_CHARDEV=n
 CONFIG_I2C_PXA=y
@@ -330,7 +331,7 @@ CONFIG_LEDS_TRIGGER_BACKLIGHT=n
 CONFIG_LEDS_TRIGGER_GPIO=n
 CONFIG_LEDS_TRIGGER_DEFAULT_ON=n
 CONFIG_RTC_CLASS=y
-CONFIG_RTC_DRV_PCAP=y
+CONFIG_RTC_DRV_PCAP=n
 CONFIG_EXT2_FS=y
 CONFIG_EXT3_FS=n
 # CONFIG_EXT3_DEFAULTS_TO_ORDERED is not set
