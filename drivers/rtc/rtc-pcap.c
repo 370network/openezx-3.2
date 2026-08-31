@@ -3,6 +3,7 @@
  *
  *  Copyright (c) 2008 guiming zhuo <gmzhuo@gmail.com>
  *  Copyright (c) 2009 Daniel Ribeiro <drwyrm@gmail.com>
+ *  Copyright (c) 2026 Richard Gracik - 370network <morc@370.network>
  *
  *  Based on Motorola's rtc.c Copyright (c) 2003-2005 Motorola
  *
@@ -30,9 +31,7 @@ static irqreturn_t pcap_rtc_irq(int irq, void *_pcap_rtc)
 	struct pcap_rtc *pcap_rtc = _pcap_rtc;
 	unsigned long rtc_events;
 
-	if (irq == pcap_to_irq(pcap_rtc->pcap, PCAP_IRQ_1HZ))
-		rtc_events = RTC_IRQF | RTC_UF;
-	else if (irq == pcap_to_irq(pcap_rtc->pcap, PCAP_IRQ_TODA))
+	if (irq == pcap_to_irq(pcap_rtc->pcap, PCAP_IRQ_TODA))
 		rtc_events = RTC_IRQF | RTC_AF;
 	else
 		rtc_events = 0;
@@ -161,12 +160,7 @@ static int __devinit pcap_rtc_probe(struct platform_device *pdev)
 	}
 
 
-	timer_irq = pcap_to_irq(pcap_rtc->pcap, PCAP_IRQ_1HZ);
 	alarm_irq = pcap_to_irq(pcap_rtc->pcap, PCAP_IRQ_TODA);
-
-	err = request_irq(timer_irq, pcap_rtc_irq, 0, "RTC Timer", pcap_rtc);
-	if (err)
-		goto fail_timer;
 
 	err = request_irq(alarm_irq, pcap_rtc_irq, 0, "RTC Alarm", pcap_rtc);
 	if (err)
@@ -175,8 +169,6 @@ static int __devinit pcap_rtc_probe(struct platform_device *pdev)
 	return 0;
 fail_alarm:
 	free_irq(timer_irq, pcap_rtc);
-fail_timer:
-	rtc_device_unregister(pcap_rtc->rtc);
 fail_rtc:
 	platform_set_drvdata(pdev, NULL);
 	kfree(pcap_rtc);
@@ -187,7 +179,6 @@ static int __devexit pcap_rtc_remove(struct platform_device *pdev)
 {
 	struct pcap_rtc *pcap_rtc = platform_get_drvdata(pdev);
 
-	free_irq(pcap_to_irq(pcap_rtc->pcap, PCAP_IRQ_1HZ), pcap_rtc);
 	free_irq(pcap_to_irq(pcap_rtc->pcap, PCAP_IRQ_TODA), pcap_rtc);
 	rtc_device_unregister(pcap_rtc->rtc);
 	kfree(pcap_rtc);
