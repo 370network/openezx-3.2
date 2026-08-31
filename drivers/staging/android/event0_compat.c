@@ -23,13 +23,19 @@ static int event0_handle(struct input_dev *dev, unsigned int type, unsigned int 
 	case EV_LED: //M1 - M4 LCD backlight
 	        pr_info("event0_compat backlight code %u state %d\n", code, value);
 		if (code == 8){ //assuming that 8 is lcd-backlight, 4 could be keyboard/button-backlight
-			struct device *backlight = bus_find_device_by_name(&platform_bus_type, NULL, "lcd-backlight");
-			struct led_classdev *bl_dev = backlight ? dev_get_drvdata(backlight) : NULL;
-			if (backlight)
-				put_device(backlight);
+			const char *state = value ? "255\n" : "20\n";
+			struct file *backlight = filp_open("/sys/class/leds/lcd-backlight/brightness", O_WRONLY, 0);
+                	mm_segment_t filesystem;
 
-			if (bl_dev)
-				bl_dev->brightness_set(bl_dev, value ? 255 : 0);
+                	if (!IS_ERR(backlight)) {
+                	        filesystem = get_fs();
+                	        set_fs(KERNEL_DS);
+
+                	        vfs_write(backlight, state, strlen(state), &backlight->f_pos);
+
+                	        set_fs(filesystem);
+                	        filp_close(backlight, NULL);
+                	}
 		}
 		break;
 
