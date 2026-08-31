@@ -87,7 +87,10 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 
 	files->ctl_file = filp_open("/dev/controlC0", O_RDWR, 0);
-	if (!IS_ERR(files->ctl_file)) {
+	if (IS_ERR(files->ctl_file)) {
+                pr_warn("eac_audio failed opening /dev/controlC0, we are possibly already opened by AudioFlinger\n");
+                files->ctl_file = NULL;
+        } else {
 		control(files->ctl_file, "Master Playback Volume", 10); //volume 0-15 (13 distorts a lot already)
 		control(files->ctl_file, "Output Mixer AL Switch", 1); //left headphone channel
 		control(files->ctl_file, "Output Mixer AR Switch", 1); //right headphone channel
@@ -170,10 +173,13 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		case 309: //(libhardware) android::AudioDriver::muteMicrophone
 		case 310: //(libhardware) android::AudioDriver::isMicrophoneMuted
 		case 312: //(libhardware) android::AudioDriver::isSpeakerphoneOn - get state
-		case 313: //(libhardware) android::AudioDriver::stayAwake
 		case 317: //(libhardware) android::AudioDriver::setSampleRate
 			printk("eac_audio stub cmd %d value %d\n", cmd, value);
-			break;
+			return 0;
+
+		case 313: //(libhardware) android::AudioDriver::stayAwake
+			printk("eac_audio was asked to stay awake for suspend: value %d - we ignore you :D\n", value);
+			return 0;
 
 		case IOCTL_BT_SCO_AUDIO_PATH_CONTROL:	//300 | (libaudioflinger) AudioHardwareHTC::enableBluetooth &
 							//(libhardware) android::AudioDriver::bluetooth &
