@@ -172,6 +172,10 @@ struct pxafb_info {
 	void __iomem		*shadow_mem;
 	unsigned long		shadow_mem_phys;
 	size_t			shadow_mem_size;
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend early_suspend;
+#endif
 };
 
 #define TO_INF(ptr,member) container_of(ptr,struct pxafb_info,member)

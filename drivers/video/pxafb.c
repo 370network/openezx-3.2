@@ -63,6 +63,11 @@
 #include <mach/bitfield.h>
 #include <mach/pxafb.h>
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+#include <linux/console.h>
+#endif
+
 /*
  * Complain if VAR is out of range.
  */
@@ -592,6 +597,44 @@ static int pxafb_blank(int blank, struct fb_info *info)
 	}
 	return 0;
 }
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void pxafb_early_suspend(struct early_suspend *h)
+{
+	struct pxafb_info *fbi;
+	struct fb_info *info;
+
+	fbi = container_of(h, struct pxafb_info, early_suspend);
+	info = &fbi->fb;
+
+	//based on store_blank from drivers/video/fbsysfs.c
+	console_lock();
+
+	info->flags |= FBINFO_MISC_USEREVENT;
+	fb_blank(info, FB_BLANK_NORMAL);
+	info->flags &= ~FBINFO_MISC_USEREVENT;
+
+	console_unlock();
+
+}
+static void pxafb_early_suspend_wake(struct early_suspend *h)
+{
+	struct pxafb_info *fbi;
+	struct fb_info *info;
+
+	fbi = container_of(h, struct pxafb_info, early_suspend);
+	info = &fbi->fb;
+
+	console_lock();
+
+	info->flags |= FBINFO_MISC_USEREVENT;
+	fb_blank(info, FB_BLANK_UNBLANK);
+	info->flags &= ~FBINFO_MISC_USEREVENT;
+
+	console_unlock();
+
+}
+#endif
 
 static struct fb_ops pxafb_ops = {
 	.owner		= THIS_MODULE,
@@ -2285,6 +2328,14 @@ static int __devinit pxafb_probe(struct platform_device *dev)
 
 	pxafb_overlay_init(fbi);
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	fbi->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	fbi->early_suspend.suspend = pxafb_early_suspend;
+	fbi->early_suspend.resume = pxafb_early_suspend_wake;
+
+	register_early_suspend(&fbi->early_suspend);
+#endif
+
 #ifdef CONFIG_CPU_FREQ
 	fbi->freq_transition.notifier_call = pxafb_freq_transition;
 	fbi->freq_policy.notifier_call = pxafb_freq_policy;
@@ -2342,6 +2393,10 @@ static int __devexit pxafb_remove(struct platform_device *dev)
 
 	if (fbi->fb.cmap.len)
 		fb_dealloc_cmap(&fbi->fb.cmap);
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&fbi->early_suspend);
+#endif
 
 	irq = platform_get_irq(dev, 0);
 	free_irq(irq, fbi);
