@@ -38,7 +38,7 @@ CONFIG_ZBOOT_ROM_BSS=0x0
 #CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0 mem=32M@0xA0000000 mem=16M@0xAC000000 loglevel=8 ignore_loglevel debug printk.time=1 initcall_debug "
 #CONFIG_CMDLINE="root=/dev/mmcblk0p2 rootfstype=ext2 init=/init ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0"
 CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init rootwait dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop quiet loglevel=0"
-#CONFIG_CMDLINE="root=/dev/mmcblk0p2 rootfstype=ext2 init=/init rootwait ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0 dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop"
+#CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init rootwait ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0 dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop"
 CONFIG_KEXEC=n
 CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
@@ -306,12 +306,12 @@ CONFIG_SND_PXA2XX_SOC_EZX=y
 CONFIG_HID_APPLE=n
 CONFIG_USB=y
 # CONFIG_USB_DEVICE_CLASS is not set
-CONFIG_USB_OHCI_HCD=y
+#CONFIG_USB_OHCI_HCD=y
 CONFIG_USB_GADGET=y
 CONFIG_USB_PXA27X=y
 CONFIG_USB_ETH=y
-CONFIG_USB_ACM=y
-CONFIG_USB_SERIAL=y
+#CONFIG_USB_ACM=y
+#CONFIG_USB_SERIAL=y
 # CONFIG_USB_ETH_RNDIS is not set
 CONFIG_USB_EOC_VBUS=y
 CONFIG_MMC=y
