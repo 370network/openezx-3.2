@@ -51,9 +51,9 @@ MODULE_DESCRIPTION("Capability-based IPC");
 #else
 #define CLASS_SIMPLE class
 #define CLASS_SIMPLE_CREATE class_create
-#define CLASS_SIMPLE_DEVICE_ADD class_device_create
+#define CLASS_SIMPLE_DEVICE_ADD device_create
 #define CLASS_SIMPLE_DESTROY class_destroy
-#define CLASS_SIMPLE_DEVICE_REMOVE(a) class_device_destroy(binder_class, a)
+#define CLASS_SIMPLE_DEVICE_REMOVE(a) device_destroy(binder_class, a)
 #endif
 
 /*
@@ -103,12 +103,12 @@ static struct file_operations binder_fops = {
 
 static void binder_vma_open(struct vm_area_struct * area);
 static void binder_vma_close(struct vm_area_struct * area);
-static struct page * binder_vma_nopage(struct vm_area_struct * area, unsigned long address, int *type);
+static int binder_vma_nopage(struct vm_area_struct * area, struct vm_fault *vmf);
 
 static struct vm_operations_struct binder_vm_ops = {
 	.open = binder_vma_open,
 	.close = binder_vma_close,
-	.nopage = binder_vma_nopage
+	.fault = binder_vma_nopage
 };
 
 struct kmem_cache *transaction_cache = NULL;
@@ -118,8 +118,8 @@ struct kmem_cache *local_mapping_cache = NULL;
 struct kmem_cache *reverse_mapping_cache = NULL;
 struct kmem_cache *range_map_cache = NULL;
 
-spinlock_t cmpxchg32_spinner = SPIN_LOCK_UNLOCKED;
-static DECLARE_MUTEX(maps_lock);
+DEFINE_SPINLOCK(cmpxchg32_spinner);
+static DEFINE_SEMAPHORE(maps_lock);
 
 /*
  * The kernel sizes its process hash table based up on the amount of RAM, with
@@ -269,65 +269,54 @@ typedef struct dbg_mem_header_s {
 static dbg_mem_header_t *dbg_active_memory;
 #endif
 
-void generic_slab_xtor(void *p, struct kmem_cache *slab, unsigned long flags)
+void generic_slab_xtor(void *p)
 {
 #if BND_MEM_DEBUG
 	dbg_mem_header_t *h = p;
-	if(flags & SLAB_CTOR_CONSTRUCTOR) {
-		h->state = 0;
-		h->slab = slab;
-		h->next = dbg_active_memory;
-		if(h->next)
-			h->next->prev = h;
-		h->prev = NULL;
-		dbg_active_memory = h;
-	}
-	else {
-		BND_ASSERT(h->state == 0 || h->state == 0x22222222, "memory still in use");
-		if(h->next)
-			h->next->prev = h->prev;
-		if(h->prev)
-			h->prev->next = h->next;
-		else
-			dbg_active_memory = h->next;
-	}
+	h->state = 0;
+	h->slab = NULL;
+	h->next = dbg_active_memory;
+	if(h->next)
+		h->next->prev = h;
+	h->prev = NULL;
+	dbg_active_memory = h;
 #endif
 }
 
-void transaction_slab_xtor(void *p, struct kmem_cache *slab, unsigned long flags)
+void transaction_slab_xtor(void *p)
 {
-	DIPRINTF(10, (KERN_WARNING "%s(%p, %p, %08lx)\n", __func__, p, slab, flags));
-	generic_slab_xtor(p, slab, flags);
+	DIPRINTF(10, (KERN_WARNING "%s(%p)\n", __func__, p));
+	generic_slab_xtor(p);
 }
 
-void thread_slab_xtor(void *p, struct kmem_cache *slab, unsigned long flags)
+void thread_slab_xtor(void *p)
 {
-	DIPRINTF(10, (KERN_WARNING "%s(%p, %p, %08lx)\n", __func__, p, slab, flags));
-	generic_slab_xtor(p, slab, flags);
+	DIPRINTF(10, (KERN_WARNING "%s(%p)\n", __func__, p));
+	generic_slab_xtor(p);
 }
 
-void node_slab_xtor(void *p, struct kmem_cache *slab, unsigned long flags)
+void node_slab_xtor(void *p)
 {
-	DIPRINTF(10, (KERN_WARNING "%s(%p, %p, %08lx)\n", __func__, p, slab, flags));
-	generic_slab_xtor(p, slab, flags);
+	DIPRINTF(10, (KERN_WARNING "%s(%p)\n", __func__, p));
+	generic_slab_xtor(p);
 }
 
-void local_mapping_slab_xtor(void *p, struct kmem_cache *slab, unsigned long flags)
+void local_mapping_slab_xtor(void *p)
 {
-	DIPRINTF(10, (KERN_WARNING "%s(%p, %p, %08lx)\n", __func__, p, slab, flags));
-	generic_slab_xtor(p, slab, flags);
+	DIPRINTF(10, (KERN_WARNING "%s(%p)\n", __func__, p));
+	generic_slab_xtor(p);
 }
 
-void reverse_mapping_slab_xtor(void *p, struct kmem_cache *slab, unsigned long flags)
+void reverse_mapping_slab_xtor(void *p)
 {
-	DIPRINTF(10, (KERN_WARNING "%s(%p, %p, %08lx)\n", __func__, p, slab, flags));
-	generic_slab_xtor(p, slab, flags);
+	DIPRINTF(10, (KERN_WARNING "%s(%p)\n", __func__, p));
+	generic_slab_xtor(p);
 }
 
-void range_map_slab_xtor(void *p, struct kmem_cache *slab, unsigned long flags)
+void range_map_slab_xtor(void *p)
 {
-	DIPRINTF(10, (KERN_WARNING "%s(%p, %p, %08lx)\n", __func__, p, slab, flags));
-	generic_slab_xtor(p, slab, flags);
+	DIPRINTF(10, (KERN_WARNING "%s(%p)\n", __func__, p));
+	generic_slab_xtor(p);
 }
 
 static int /*__init*/ create_pools(void)
@@ -402,7 +391,7 @@ static int destroy_pools(void)
 
 static int __init init_binder(void)
 {
-	struct class_device *simple;
+	struct device *simple;
 	int result;
 	dev_t dev = 0;
 
@@ -620,21 +609,22 @@ static void binder_vma_close(struct vm_area_struct * area)
 	DPRINTF(5, (KERN_WARNING "binder_vma_close() for %08x\n", (unsigned int)area->vm_private_data));
 }
 
-static struct page * binder_vma_nopage(struct vm_area_struct * area, unsigned long address, int *type)
+//switched from the NOPAGE api to VM_FAULT
+static int binder_vma_nopage(struct vm_area_struct * area, struct vm_fault *vmf)
 {
 	struct page *pageptr = NULL;
+	unsigned long address = (unsigned long)vmf->virtual_address;
 	// the private data holds a pointer to owning binder_proc
 	binder_proc_t *bp = (binder_proc_t *)area->vm_private_data;
     DPRINTF(5, ("binder_vma_nopage(%p, %08lx)\n", bp, address));
 	// make sure this address corresponds to a valid transaction
 	if (!binder_proc_ValidTransactionAddress(bp, address, &pageptr))
-		return NOPAGE_SIGBUS;
+		return VM_FAULT_SIGBUS;
 	// bump the kernel reference counts
 	get_page(pageptr);
-	// record the fault type
-	if (type) *type = VM_FAULT_MINOR;
 	// return the page
-	return pageptr;
+	vmf->page = pageptr;
+	return 0;
 }
 
 void my_dump_stack(void) { printk(KERN_WARNING ""); dump_stack(); }

@@ -388,6 +388,7 @@ binder_transaction_dtor(binder_transaction_t *that)
 			BND_FLUSH_CACHE(  binder_transaction_UserData(that),
 			                  binder_transaction_UserOffsets(that) +
 			                  binder_transaction_OffsetsSize(that) );
+
 			while (off < offEnd) {
 				DPRINTF(9, (KERN_WARNING "type ptr: %p\n", ptr+*off));
 				flat = (struct flat_binder_object*)(ptr + *off++);
@@ -478,8 +479,8 @@ binder_transaction_CopyTransactionData(binder_transaction_t *that, binder_proc_t
 	DPRINTF(0, (KERN_WARNING "%s(%p, %p)\n", __func__, that, recipient));
 	// Do we need to ensure that->map contains NULL?  What do we do if it doesn't?
 	if(tSize >= binder_transaction_print_size) {
-		printk(KERN_WARNING "%s-%d: binder_transaction_CopyTransactionData size %d (%d,%d) to %p, reply=%d\n",
-			   current->comm, current->pid, tSize, that->data_size, that->offsets_size, recipient, binder_transaction_IsReply(that));
+		//printk(KERN_WARNING "%s-%d: binder_transaction_CopyTransactionData size %d (%d,%d) to %p, reply=%d\n",
+		//	   current->comm, current->pid, tSize, that->data_size, that->offsets_size, recipient, binder_transaction_IsReply(that));
 	}
 	if (binder_transaction_IsAcquireReply(that)) {
 		// No data to copy
@@ -487,8 +488,8 @@ binder_transaction_CopyTransactionData(binder_transaction_t *that, binder_proc_t
 	} else {
 	// if (tSize >= sizeof(that->data)) {
 		if(tSize >= binder_transaction_fail_size) {
-			printk(KERN_ERR "%s-%d: binder_transaction_CopyTransactionData transaction size too big, size %d (%d,%d) to %p\n",
-				   current->comm, current->pid, tSize, that->data_size, that->offsets_size, recipient);
+			//printk(KERN_ERR "%s-%d: binder_transaction_CopyTransactionData transaction size too big, size %d (%d,%d) to %p\n",
+			//	   current->comm, current->pid, tSize, that->data_size, that->offsets_size, recipient);
 			return result;
 		}
 		that->map = binder_proc_AllocateTransactionBuffer(recipient, tSize);

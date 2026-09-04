@@ -21,6 +21,7 @@
 #include <linux/mm.h>
 #include <linux/hash.h>
 #include <linux/sched.h>
+#include <linux/pid.h>
 
 #include "old_binder_defs.h"
 #include "old_binder_proc.h"
@@ -61,6 +62,7 @@ static void binder_proc_RemoveThreadFromWaitStack(binder_proc_t *that, binder_th
 static void set_thread_priority(pid_t thread, int priority)
 {
 	int nice;
+	struct task_struct *task;
 
 	// The following must match SysThreadChangePriority in libbinder.
 	if(priority >= 80)
@@ -79,7 +81,9 @@ static void set_thread_priority(pid_t thread, int priority)
 		nice /= 4;
 	}
 	//printk("set_thread_priority tid %d pri %d == nice %d\n", thread, priority, nice);
-	set_user_nice(find_task_by_pid(thread), nice);
+	task = pid_task(find_vpid(thread), PIDTYPE_PID);
+	if (task)
+		set_user_nice(task, nice);
 }
 
 
@@ -88,9 +92,9 @@ void binder_proc_init(binder_proc_t *that)
 	int i;
 	atomic_set(&that->m_primaryRefs, 0);
 	atomic_set(&that->m_secondaryRefs, 0);
-	init_MUTEX(&that->m_lock);
+	sema_init(&that->m_lock, 1);
 	spin_lock_init(&that->m_spin_lock);
-	init_MUTEX(&that->m_map_pool_lock);
+	sema_init(&that->m_map_pool_lock, 1);
 	that->m_threads = NULL;
 	INIT_LIST_HEAD(&that->m_waitStack);
 	that->m_waitStackCount = 0;
@@ -1565,7 +1569,7 @@ binder_proc_WaitForRequest(binder_proc_t *that, binder_thread_t* who, binder_tra
 	DBLOCK((KERN_WARNING "WaitForRequest() going to lock %p in %d\n", that, binder_thread_Thid(who)));
 	BND_LOCK(that->m_lock);
 
-	BND_ASSERT(atomic_read(&that->m_lock.count) <= 0, "WaitForRequest() lock still free after BND_LOCK");
+	BND_ASSERT(that->m_lock.count <= 0, "WaitForRequest() lock still free after BND_LOCK");
 	
 	if (who->m_isSpawned && who->m_firstLoop) {
 		/*	This is a new thread that is waiting for its first time. */

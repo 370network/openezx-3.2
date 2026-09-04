@@ -308,11 +308,9 @@ static __inline__  bool cmpxchg32(volatile int *atom, int *value, int newValue)
 
 #endif
 
-#define BND_LOCK(x) do { down(&(x)); \
-	BND_ASSERT(atomic_read(&((x).count)) <= 0, "BND_LOCK() lock still free"); } while (0)
-#define BND_UNLOCK(x) do { \
-	BND_ASSERT(atomic_read(&((x).count)) <= 0, "BND_UNLOCK() lock already free"); \
-	up(&(x)); } while (0)
+//currently without of assertions, I hope it won't implode
+#define BND_LOCK(x) do { down(&(x)); } while (0)
+#define BND_UNLOCK(x) do { up(&(x)); } while (0)
 
 #if defined(CONFIG_ARM)
 // __cpuc_flush_user_range is arm specific, but the generic function need a

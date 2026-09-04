@@ -26,6 +26,8 @@
 #include <stdarg.h>
 #include <asm/uaccess.h>
 #include <asm/bitops.h>
+#include <linux/sched.h>
+#include <linux/semaphore.h>
 
 static void		binder_thread_Cleanup(binder_thread_t *that);
 
@@ -41,7 +43,7 @@ static status_t	binder_thread_ReturnTransaction(binder_thread_t *that, iobuffer_
 #define CHECK_CAPS 0
 
 static binder_node_t *gContextManagerNode = NULL;
-static DECLARE_MUTEX(gContextManagerNodeLock);
+static DEFINE_SEMAPHORE(gContextManagerNodeLock);
 static atomic_t g_count = ATOMIC_INIT(0);
 
 int
@@ -68,7 +70,7 @@ binder_thread_t * binder_thread_init(int thid, binder_proc_t *team)
 		atomic_set(&that->m_secondaryRefs, 0);
 		atomic_set(&that->m_wake_count, 0);
 		that->m_err = 0;
-		init_MUTEX(&that->m_lock);
+		sema_init(&that->m_lock, 1);
 		init_waitqueue_head(&that->m_wait);
 		that->m_waitForReply = 0;
 		that->m_reply = NULL;
