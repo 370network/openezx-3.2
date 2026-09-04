@@ -10,7 +10,7 @@ CONFIG_RD_BZIP2=n
 CONFIG_RD_LZMA=n
 CONFIG_EXPERT=y
 # CONFIG_COMPAT_BRK is not set
-CONFIG_SLOB=y
+CONFIG_SLAB=y
 CONFIG_MODULES=y
 CONFIG_MODULE_UNLOAD=y
 CONFIG_MODULE_FORCE_UNLOAD=y
@@ -37,8 +37,8 @@ CONFIG_ZBOOT_ROM_TEXT=0x0
 CONFIG_ZBOOT_ROM_BSS=0x0
 #CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0 mem=32M@0xA0000000 mem=16M@0xAC000000 loglevel=8 ignore_loglevel debug printk.time=1 initcall_debug "
 #CONFIG_CMDLINE="root=/dev/mmcblk0p2 rootfstype=ext2 init=/init ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0"
-CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init rootwait dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop quiet loglevel=0"
-#CONFIG_CMDLINE="root=/dev/mmcblk0p3 rootfstype=ext2 init=/init rootwait ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0 dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop"
+CONFIG_CMDLINE="root=/dev/mmcblk0p2 rootfstype=ext2 init=/init rootwait dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop quiet loglevel=0"
+#CONFIG_CMDLINE="root=/dev/mmcblk0p2 rootfstype=ext2 init=/init rootwait ip=192.168.0.2:192.168.0.1:192.168.0.1:255.255.255.0 dhash_entries=1024 ihash_entries=1024 lpj=1554432 pid_max=512 cma=0 elevator=noop"
 CONFIG_KEXEC=n
 CONFIG_CPU_FREQ=y
 CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
