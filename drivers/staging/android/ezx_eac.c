@@ -28,6 +28,9 @@
 #include <asm/uaccess.h>
 #include <sound/asound.h>
 #include <linux/soundcard.h>
+#include <linux/platform_device.h>
+#include <asm/uaccess.h>
+#include <linux/mutex.h>
 
 MODULE_AUTHOR("Google, Inc. & 370network");
 MODULE_DESCRIPTION("Android EZX Audio Driver");
@@ -39,9 +42,13 @@ MODULE_VERSION("1.0");
 #define IOCTL_SET_SPEAKERPHONE          311
 
 struct eac_audio_files {
-    struct file *ctl_file;
-    struct file *dsp_file;
+        struct mutex lock;
+        bool initialized;
+        struct file *ctl_file;
+        struct file *dsp_file;
 };
+
+static struct eac_audio_files *eac_audio_data = NULL;
 
 static long custom_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -78,45 +85,52 @@ static void control(struct file *ctl, const char *name, int val)
 
 static int eac_audio_open(struct inode *inode, struct file *file)
 {
-	struct eac_audio_files *files;
+	if (!eac_audio_data)
+                return -ENODEV;
 
 	printk("eac_audio attempt to open /dev/eac\n");
 
-	files = kzalloc(sizeof(*files), GFP_KERNEL);
-	if (!files)
-		return -ENOMEM;
+	mutex_lock(&eac_audio_data->lock);
+	if (!eac_audio_data->initialized) {
+		printk("eac_audio loading OSS nodes\n");
 
-	files->ctl_file = filp_open("/dev/controlC0", O_RDWR, 0);
-	if (IS_ERR(files->ctl_file)) {
-                pr_warn("eac_audio failed opening /dev/controlC0, we are possibly already opened by AudioFlinger\n");
-                files->ctl_file = NULL;
-        } else {
-		control(files->ctl_file, "Master Playback Volume", 10); //volume 0-15 (13 distorts a lot already)
-		control(files->ctl_file, "Output Mixer AL Switch", 1); //left headphone channel
-		control(files->ctl_file, "Output Mixer AR Switch", 1); //right headphone channel
-		control(files->ctl_file, "Output Mixer A1 Switch", 0); //earpiece output
-		control(files->ctl_file, "Output Mixer A2 Switch", 1); //loudspeaker output
-		control(files->ctl_file, "Downmixer", 3);	//2->1ch -6db - downmixing for the loudspeaker
-							//maybe regular 2->1ch is enough, needd more testing
-							//plus disable it for headphones, otherwise you turn mono
-		//filp_close(files->ctl_file, NULL);
+
+		eac_audio_data->ctl_file = filp_open("/dev/controlC0", O_RDWR, 0);
+		if (IS_ERR(eac_audio_data->ctl_file)) {
+                	pr_warn("eac_audio failed opening /dev/controlC0, we are possibly already opened by AudioFlinger\n");
+                	eac_audio_data->ctl_file = NULL;
+        	} else {
+			control(eac_audio_data->ctl_file, "Master Playback Volume", 10); //volume 0-15 (13 distorts a lot already)
+			control(eac_audio_data->ctl_file, "Output Mixer AL Switch", 1); //left headphone channel
+			control(eac_audio_data->ctl_file, "Output Mixer AR Switch", 1); //right headphone channel
+			control(eac_audio_data->ctl_file, "Output Mixer A1 Switch", 0); //earpiece output
+			control(eac_audio_data->ctl_file, "Output Mixer A2 Switch", 1); //loudspeaker output
+			control(eac_audio_data->ctl_file, "Downmixer", 3);	//2->1ch -6db - downmixing for the loudspeaker
+								//maybe regular 2->1ch is enough, needd more testing
+								//plus disable it for headphones, otherwise you turn mono
+			//filp_close(eac_audio_data->ctl_file, NULL);
+		}
+
+		eac_audio_data->dsp_file = filp_open("/dev/dsp", O_WRONLY, 0);
+		if (IS_ERR(eac_audio_data->dsp_file)) {
+			pr_warn("eac_audio failed opening /dev/dsp, we are possibly already opened by AudioFlinger\n");
+			eac_audio_data->dsp_file = NULL;
+		} else {
+			int fmt = AFMT_S16_LE;
+			int chan = 2;
+			int bits = 44100;
+
+			custom_ioctl(eac_audio_data->dsp_file, SNDCTL_DSP_SETFMT, (unsigned long)&fmt);
+			custom_ioctl(eac_audio_data->dsp_file, SNDCTL_DSP_CHANNELS, (unsigned long)&chan);
+			custom_ioctl(eac_audio_data->dsp_file, SNDCTL_DSP_SPEED, (unsigned long)&bits);
+		}
+
+		eac_audio_data->initialized = true;
 	}
 
-	files->dsp_file = filp_open("/dev/dsp", O_WRONLY, 0);
-	if (IS_ERR(files->dsp_file)) {
-		pr_warn("eac_audio failed opening /dev/dsp, we are possibly already opened by AudioFlinger\n");
-		files->dsp_file = NULL;
-	} else {
-		int fmt = AFMT_S16_LE;
-		int chan = 2;
-		int bits = 44100;
+	mutex_unlock(&eac_audio_data->lock);
 
-		custom_ioctl(files->dsp_file, SNDCTL_DSP_SETFMT, (unsigned long)&fmt);
-		custom_ioctl(files->dsp_file, SNDCTL_DSP_CHANNELS, (unsigned long)&chan);
-		custom_ioctl(files->dsp_file, SNDCTL_DSP_SPEED, (unsigned long)&bits);
-	}
-
-	file->private_data = files;
+	file->private_data = eac_audio_data;
 	return 0;
 }
 
@@ -138,17 +152,6 @@ static ssize_t eac_audio_read(struct file *file, char __user *buf, size_t count,
 
 static int eac_audio_release(struct inode *inode, struct file *file)
 {
-	struct eac_audio_files *files = file->private_data;
-
-	if (files->dsp_file)
-		filp_close(files->dsp_file, NULL);
-
-	if (files->ctl_file)
-		filp_close(files->ctl_file, NULL);
-
-	kfree(files);
-	file->private_data = NULL;
-
 	return 0;
 }
 
@@ -162,13 +165,16 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	if (get_user(value, (int __user *)arg)) {
 		return -EFAULT;
 	}
+	u32 additional_info[3];
+
 
 	switch (cmd) {
-		case 303: //(libhardware) android::AudioDriver::setVolume
 		case 304: //(libhardware) android::AudioDriver::getVolume - specific stream type
 		case 305: //(libhardware) android::AudioDriver::setStreamType
 		case 307: //(libaudioflinger) AudioHardwareHTC::setVoiceValue &
 			//(libhardware) android::AudioDriver::setVolume - master (?)
+			//this one is deliberately stubbed out, M4 calls it and kills audio
+			//M1 changes with 303 anyway
 		case 308: //(libhardware) android::AudioDriver::getVolume - master (?)
 		case 309: //(libhardware) android::AudioDriver::muteMicrophone
 		case 310: //(libhardware) android::AudioDriver::isMicrophoneMuted
@@ -176,6 +182,16 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		case 317: //(libhardware) android::AudioDriver::setSampleRate
 			printk("eac_audio stub cmd %d value %d\n", cmd, value);
 			return 0;
+
+		case 303: //(libhardware) android::AudioDriver::setVolume
+			if (copy_from_user(additional_info, (void __user *)arg, sizeof(additional_info)))
+				return -EFAULT;
+
+			if (files && files->ctl_file) {
+				int vol = (additional_info[1] * 10 + 32767) / 65535; //remap to 0-10
+				control(files->ctl_file, "Master Playback Volume", vol);
+				printk("eac_audio android changed volume to %d\n", vol);
+			}
 
 		case 313: //(libhardware) android::AudioDriver::stayAwake
 			printk("eac_audio was asked to stay awake for suspend: value %d - we ignore you :D\n", value);
@@ -190,8 +206,10 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		case IOCTL_SET_SPEAKERPHONE:	//311 | (libaudioflinger) AudioHardwareHTC::enableSpeaker &
 						//(libhardware) android::AudioDriver::speakerphone
 			printk("eac_audio set speakerphone %d\n", value);
-			control(files->ctl_file, "Output Mixer A1 Switch", !value); //earpiece output
-			control(files->ctl_file, "Output Mixer A2 Switch", value); //loudspeaker output
+			if (files && files->ctl_file) {
+				control(files->ctl_file, "Output Mixer A1 Switch", !value); //earpiece output
+				control(files->ctl_file, "Output Mixer A2 Switch", value); //loudspeaker output
+			}
 			break;
 		default:
 			return 0;
@@ -217,8 +235,25 @@ static struct miscdevice eac_audio_misc = {
 
 static int __init eac_audio_init(void)
 {
-	printk("eac_audio_init\n");
-	return misc_register(&eac_audio_misc);
+	int val;
+	printk("eac_audio init\n");
+
+	eac_audio_data = kzalloc(sizeof(*eac_audio_data), GFP_KERNEL);
+        if (!eac_audio_data)
+                return -ENOMEM;
+
+	mutex_init(&eac_audio_data->lock);
+        eac_audio_data->initialized = false;
+
+        val = misc_register(&eac_audio_misc);
+	if (val) {
+                printk("eac_audio misc_register fail %d\n", val);
+                kfree(eac_audio_data);
+                eac_audio_data = NULL;
+                return val;
+        }
+
+        return 0;
 }
 
 static void __exit eac_audio_exit(void)
