@@ -9,6 +9,7 @@
 #include <linux/mfd/ezx-pcap.h>
 #include <linux/mfd/ezx-eoc.h>
 #include <linux/regulator/consumer.h>
+#include <linux/workqueue.h>
 
 #define PCAP_ADC_TO_mV(x)	(((x) * 3) + 2000)
 #define PCAP_ADC_TO_mA(x)	((x) < 178 ? 0 : ((x) - 178) * 3165 / 1000)
@@ -27,6 +28,7 @@ struct pcap_bat_struct {
 	int vbus_irq;
 	int charger_irq;
 	int id_irq;
+	struct delayed_work update_work;
 	struct mutex lock;
 };
 
@@ -34,11 +36,29 @@ static struct pcap_bat_struct pcap_bat;
 static void pcap_bat_update(struct pcap_bat_struct *bat);
 static irqreturn_t eoc_batpon_detect(int irq, void *_bat);
 
+//workaround for Android 0.9
+//they have an uevent observer for DEVPATH=/class/power_supply
+//kernel generates eg. DEVPATH=/devices/platform/pxa2xx-spi.1/spi1.0/pcap-battery/power_supply/battery
+//Google... why..
+static void battery_update_android(struct power_supply *psy){
+	char *envp[] = { "DEVPATH=/class/power_supply", NULL };
+
+	kobject_uevent_env(&psy->dev->kobj, KOBJ_CHANGE, envp);
+}
+
+static void pcap_bat_update_work(struct work_struct *work){
+	struct pcap_bat_struct *data = container_of(work, struct pcap_bat_struct, update_work.work);
+	battery_update_android(&data->psy);
+
+	schedule_delayed_work(&data->update_work, msecs_to_jiffies(5000));
+}
+
 static int pcap_bat_get_property(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
 {
 	int ret = 0;
+	int capacity;
 	struct pcap_bat_struct *bat = container_of(psy,
 						struct pcap_bat_struct, psy);
 
@@ -48,8 +68,31 @@ static int pcap_bat_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = bat->status;
 		break;
+	case POWER_SUPPLY_PROP_HEALTH:
+		val->intval = POWER_SUPPLY_HEALTH_GOOD;
+		break;
+	case POWER_SUPPLY_PROP_PRESENT:
+		if (!bat->eoc)
+			val->intval = 0;
+		else
+			val->intval =
+				!!(bat->eoc->sense &
+				   EOC_SENSE_BATTERY_PON);
+		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY:
+		capacity = (bat->now - bat->min) * 100 /
+			   (bat->max - bat->min);
+
+		if (capacity < 0)
+			capacity = 0;
+
+		if (capacity > 100)
+			capacity = 100;
+
+		val->intval = capacity;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = bat->now;
@@ -122,7 +165,7 @@ static void pcap_bat_update(struct pcap_bat_struct *bat)
 	 * http://lists.gnumonks.org/pipermail/openezx-devel/2010-October/003544.html
 	 */
 	if (old != bat->status && psy->changed_work.func != NULL)
-		power_supply_changed(psy);
+		battery_update_android(psy);
 }
 
 static void eoc_charge_start(struct pcap_bat_struct *bat)
@@ -296,7 +339,10 @@ static irqreturn_t eoc_current_detect(int irq, void *_bat)
 
 static enum power_supply_property pcap_bat_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_HEALTH,
+	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
+	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN,
@@ -327,7 +373,12 @@ static int __devinit pcap_bat_probe(struct platform_device *pdev)
 	pcap_bat.pcap = dev_get_drvdata(pdev->dev.parent);
 	mutex_init(&pcap_bat.lock);
 
-	return power_supply_register(&pdev->dev, &pcap_bat.psy);
+ 	power_supply_register(&pdev->dev, &pcap_bat.psy);
+
+	INIT_DELAYED_WORK(&pcap_bat.update_work, pcap_bat_update_work);
+	schedule_delayed_work(&pcap_bat.update_work, msecs_to_jiffies(5000));
+
+	return 0;
 }
 
 static int __devexit pcap_bat_remove(struct platform_device *dev)
