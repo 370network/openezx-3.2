@@ -31,6 +31,7 @@
 #include <linux/platform_device.h>
 #include <asm/uaccess.h>
 #include <linux/mutex.h>
+#include <linux/cred.h>
 
 MODULE_AUTHOR("Google, Inc. & 370network");
 MODULE_DESCRIPTION("Android EZX Audio Driver");
@@ -85,6 +86,9 @@ static void control(struct file *ctl, const char *name, int val)
 
 static int eac_audio_open(struct inode *inode, struct file *file)
 {
+	struct cred *new_cred;
+        const struct cred *old_cred;
+
 	if (!eac_audio_data)
                 return -ENODEV;
 
@@ -94,10 +98,18 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 	if (!eac_audio_data->initialized) {
 		printk("eac_audio loading OSS nodes\n");
 
+		printk("eac_audio HACK: switching to kernel context for opening files\n");
+		new_cred = prepare_kernel_cred(NULL);
+                if (!new_cred) {
+                        mutex_unlock(&eac_audio_data->lock);
+                        return -ENOMEM;
+                }
+                old_cred = override_creds(new_cred);
 
 		eac_audio_data->ctl_file = filp_open("/dev/controlC0", O_RDWR, 0);
+		long err = PTR_ERR(eac_audio_data->ctl_file);
 		if (IS_ERR(eac_audio_data->ctl_file)) {
-                	pr_warn("eac_audio failed opening /dev/controlC0, we are possibly already opened by AudioFlinger\n");
+                	pr_warn("eac_audio failed opening /dev/controlC0, error: %d, we are possibly already opened by AudioFlinger\n", err);
                 	eac_audio_data->ctl_file = NULL;
         	} else {
 			control(eac_audio_data->ctl_file, "Master Playback Volume", 10); //volume 0-15 (13 distorts a lot already)
@@ -112,8 +124,9 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 		}
 
 		eac_audio_data->dsp_file = filp_open("/dev/dsp", O_WRONLY, 0);
+		err = PTR_ERR(eac_audio_data->dsp_file);
 		if (IS_ERR(eac_audio_data->dsp_file)) {
-			pr_warn("eac_audio failed opening /dev/dsp, we are possibly already opened by AudioFlinger\n");
+			pr_warn("eac_audio failed opening /dev/dsp, error: %d, we are possibly already opened by AudioFlinger\n", err);
 			eac_audio_data->dsp_file = NULL;
 		} else {
 			int fmt = AFMT_S16_LE;
@@ -124,6 +137,10 @@ static int eac_audio_open(struct inode *inode, struct file *file)
 			custom_ioctl(eac_audio_data->dsp_file, SNDCTL_DSP_CHANNELS, (unsigned long)&chan);
 			custom_ioctl(eac_audio_data->dsp_file, SNDCTL_DSP_SPEED, (unsigned long)&bits);
 		}
+
+		printk("eac_audio HACK: switching back to user context\n");
+		revert_creds(old_cred);
+                put_cred(new_cred);
 
 		eac_audio_data->initialized = true;
 	}
