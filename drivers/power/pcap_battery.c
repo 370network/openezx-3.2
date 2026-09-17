@@ -40,10 +40,9 @@ static irqreturn_t eoc_batpon_detect(int irq, void *_bat);
 //they have an uevent observer for DEVPATH=/class/power_supply
 //kernel generates eg. DEVPATH=/devices/platform/pxa2xx-spi.1/spi1.0/pcap-battery/power_supply/battery
 //Google... why..
+char *BatteryService_mUEventObserver_path[] = { "DEVPATH=/class/power_supply", NULL };
 static void battery_update_android(struct power_supply *psy){
-	char *envp[] = { "DEVPATH=/class/power_supply", NULL };
-
-	kobject_uevent_env(&psy->dev->kobj, KOBJ_CHANGE, envp);
+       kobject_uevent_env(&psy->dev->kobj, KOBJ_CHANGE, BatteryService_mUEventObserver_path);
 }
 
 static void pcap_bat_update_work(struct work_struct *work){
@@ -152,20 +151,20 @@ static void pcap_bat_update(struct pcap_bat_struct *bat)
 		return;
 	}
 
-        if (regulator_is_enabled(bat->reg)) {
+        /*if (regulator_is_enabled(bat->reg)) {
 		if (bat->now < bat->max)
 			bat->status = POWER_SUPPLY_STATUS_CHARGING;
 		else
 			bat->status = POWER_SUPPLY_STATUS_FULL;
 	} else {
 		bat->status = POWER_SUPPLY_STATUS_DISCHARGING;
-	}
+	}*/
 
 	/* workaround by winice at sina.com
 	 * http://lists.gnumonks.org/pipermail/openezx-devel/2010-October/003544.html
 	 */
-	if (old != bat->status && psy->changed_work.func != NULL)
-		battery_update_android(psy);
+	//if (old != bat->status && psy->changed_work.func != NULL)
+	//	battery_update_android(psy);
 }
 
 static void eoc_charge_start(struct pcap_bat_struct *bat)
@@ -189,10 +188,12 @@ static void eoc_charge_start(struct pcap_bat_struct *bat)
 	switch (id) {
 		case 0:
 		 printk("looks like charger\n");
+		 bat->status = POWER_SUPPLY_STATUS_CHARGING;
 		 cr = 900000;
 		 break;
 		default:
 		 printk("looks like usb.\n");
+		 bat->status = POWER_SUPPLY_STATUS_CHARGING;
 		 cr = 300000;
 	}
 
@@ -327,6 +328,7 @@ static irqreturn_t eoc_current_detect(int irq, void *_bat)
 		printk("current appeared\n");
 	} else {
 		printk("current disappeared\n");
+		bat->status = POWER_SUPPLY_STATUS_DISCHARGING;
 
 		if(bat->now > pcap_bat.max) {
 			printk("charge complete\n");
