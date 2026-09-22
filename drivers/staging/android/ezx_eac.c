@@ -32,6 +32,8 @@
 #include <asm/uaccess.h>
 #include <linux/mutex.h>
 #include <linux/cred.h>
+#include <linux/printk.h>
+#include <linux/ktime.h>
 
 MODULE_AUTHOR("Google, Inc. & 370network");
 MODULE_DESCRIPTION("Android EZX Audio Driver");
@@ -183,7 +185,7 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		return -EFAULT;
 	}
 	u32 additional_info[3];
-
+	u8 dummy_buffer[64];
 
 	switch (cmd) {
 		case 304: //(libhardware) android::AudioDriver::getVolume - specific stream type
@@ -209,6 +211,7 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 				control(files->ctl_file, "Master Playback Volume", vol);
 				printk("eac_audio android changed volume to %d\n", vol);
 			}
+			return 0;
 
 		case 313: //(libhardware) android::AudioDriver::stayAwake
 			printk("eac_audio was asked to stay awake for suspend: value %d - we ignore you :D\n", value);
@@ -218,7 +221,11 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 							//(libhardware) android::AudioDriver::bluetooth &
 							//libhardware) android::AudioDriver::speakerphone - disable BT
 		case 315: //(libaudioflinger) AudioHardwareHTC::open
-			return -1;
+    			memset(dummy_buffer, 0, sizeof(dummy_buffer));
+    			if (copy_to_user((void __user *)arg, dummy_buffer, sizeof(dummy_buffer)))
+				return -EFAULT;
+			printk("eac_audio was asked to open the sound interface :)\n");
+			return 0;
 
 		case IOCTL_SET_SPEAKERPHONE:	//311 | (libaudioflinger) AudioHardwareHTC::enableSpeaker &
 						//(libhardware) android::AudioDriver::speakerphone
@@ -229,6 +236,7 @@ static long eac_audio_ioctl(struct file *file, unsigned int cmd, unsigned long a
 			}
 			break;
 		default:
+			printk("eac_audio unknown ioctl %d\n", value);
 			return 0;
 	}
 }
